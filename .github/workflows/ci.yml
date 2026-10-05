@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - name: vet
+        run: go vet ./...
+      - name: unit + scenario tests
+        run: go test ./...
+      - name: kill-tests (chaos suite)
+        run: go test ./... -run '^TestK' -v
+      - name: fuzz smoke (Shamir round-trip)
+        run: go test ./research/l0 -run '^$' -fuzz '^FuzzShamirRoundTrip$' -fuzztime 30s
+      - name: fuzz smoke (timeline JSON)
+        run: go test ./research/l0 -run '^$' -fuzz '^FuzzUnmarshalTimeline$' -fuzztime 30s
+      - name: fuzz smoke (wire frames)
+        run: go test ./research/l0 -run '^$' -fuzz '^FuzzWireFrame$' -fuzztime 30s
+      - name: cross-compile linux binaries
+        run: GOOS=linux GOARCH=amd64 go build ./...
+
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+          cache: true
+      - name: full scenario matrix (S1-S7 + baseline + NFR3)
+        run: go run ./cmd/to bench run --scenario all --out reports --log reports/action-log.txt | tee bench.log
+      - name: calibration (operating-point selection)
+        run: go run ./cmd/to bench calibrate --out reports
+      - name: scenario evidence must match the calibrated operating point
+        run: |
+          ! grep -q "WARNING" bench.log
+
+  model-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: TLC on the reduced config (P1-P6 incl. P5)
+        run: |
+          cd specs
+          java -jar ../tools/tla2tools.jar -workers 2 -config TrustOrchestratorCI.cfg TrustOrchestrator.tla | tee ../reports/tlc-ci.log
+          grep -q "No error has been found" ../reports/tlc-ci.log
+      - name: TLC on the gateway adoption gate (P7)
+        run: |
+          cd specs
+          java -jar ../tools/tla2tools.jar -workers 2 -config Gateway.cfg Gateway.tla | tee ../reports/tlc-gateway-ci.log
+          grep -q "No error has been found" ../reports/tlc-gateway-ci.log
+      - name: TLC on the PQ hybrid handshake (P8)
+        run: |
+          cd specs
+          java -jar ../tools/tla2tools.jar -workers 2 -config PQHandshake.cfg PQHandshake.tla | tee ../reports/tlc-pq-ci.log
+          grep -q "No error has been found" ../reports/tlc-pq-ci.log
+      - name: TLC mutation tests must report violations (P2/P6/P7/P8)
+        run: |
+          cd specs
+          java -jar ../tools/tla2tools.jar -workers 2 -config GatewayP7Mutant.cfg GatewayP7Mutant.tla | tee ../reports/mutation-p7-ci.log
+          grep -q "Invariant Safety is violated" ../reports/mutation-p7-ci.log
+          java -jar ../tools/tla2tools.jar -workers 2 -config PQHandshakeMutant.cfg PQHandshakeMutant.tla | tee ../reports/mutation-pq-ci.log
+          grep -q "Invariant Safety is violated" ../reports/mutation-pq-ci.log
