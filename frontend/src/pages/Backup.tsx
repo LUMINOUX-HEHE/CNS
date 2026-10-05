@@ -18,6 +18,16 @@ export default function Backup() {
     }
   }
 
+  async function downloadBackup() {
+    if (!info) return;
+    try {
+      await api.download(info.download, `${info.id}.json`);
+      setMsg({ m: "download started", k: "ok" });
+    } catch (e: any) {
+      setMsg({ m: e.message, k: "err" });
+    }
+  }
+
   async function restore() {
     const f = file.current?.files?.[0];
     if (!f) return setMsg({ m: "choose a backup file", k: "err" });
@@ -47,9 +57,7 @@ export default function Backup() {
             Create snapshot
           </button>
           {info && (
-            <a href={info.download} download="backup.json">
-              download
-            </a>
+            <button onClick={downloadBackup}>Download backup</button>
           )}
         </div>
       </div>

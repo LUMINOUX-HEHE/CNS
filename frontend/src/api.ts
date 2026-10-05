@@ -50,9 +50,33 @@ async function request<T>(
   return (json === null ? text : json) as T;
 }
 
+// download fetches an authenticated file and saves it via a blob URL. A
+// plain <a href> cannot carry the Bearer token, so protected downloads
+// (e.g. /v1/backup/{id}/download) would otherwise 401.
+async function download(path: string, filename: string): Promise<void> {
+  const headers: Record<string, string> = {};
+  const token = tokenGetter();
+  if (token) headers["Authorization"] = "Bearer " + token;
+  const res = await fetch(path, { headers });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Api(res.status, `${res.status} ${text}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   get: <T>(p: string) => request<T>("GET", p),
   post: <T>(p: string, body?: unknown) => request<T>("POST", p, body),
   del: <T>(p: string) => request<T>("DELETE", p),
   postRaw: <T>(p: string, raw: string) => request<T>("POST", p, undefined, raw),
+  download,
 };
