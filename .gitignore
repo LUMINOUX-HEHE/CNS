@@ -28,3 +28,6 @@ frontend/node_modules/
 demo-data/
 demo-data.log
 .kilo/
+
+# ui-ux-pro-max generated skill + design system
+design-system/
