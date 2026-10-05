@@ -2,7 +2,7 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
 import {
   IconGrid, IconShield, IconLock, IconSearch, IconUsers,
-  IconWebhook, IconChart, IconSave,
+  IconWebhook, IconChart, IconSave, IconTerminal,
 } from "./icons";
 import Login from "./pages/Login";
 import Overview from "./pages/Overview";
@@ -31,39 +31,58 @@ export default function App() {
   if (!connected) return <Login />;
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <h1>Trust Orchestrator</h1>
-        <nav>
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.end} className="navlink">
-              <span className="nav-ico">{n.icon}</span>
-              <span>{n.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <div style={{ marginTop: 22 }}>
-          <div className="conn">
-            <span className="dot" /> connected
-          </div>
-          <button onClick={logout} style={{ width: "100%" }}>
-            Disconnect
-          </button>
+    <div className="app">
+      <header className="appbar">
+        <div className="brand">
+          <span className="mark"><IconTerminal size={15} /></span>
+          TRUST&nbsp;ORCHESTRATOR
         </div>
-      </aside>
-      <main className="content">
-        <Routes>
-          <Route path="/" element={<Overview />} />
-          <Route path="/org" element={<OrgPage />} />
-          <Route path="/transparency" element={<Transparency />} />
-          <Route path="/audit" element={<Audit />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/webhooks" element={<Webhooks />} />
-          <Route path="/metrics" element={<Metrics />} />
-          <Route path="/backup" element={<Backup />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+        <div className="spacer" />
+        <span className="status">
+          <span className="dot" /> secure session
+        </span>
+        <button onClick={logout}>Disconnect</button>
+      </header>
+
+      <div className="body">
+        <aside className="sidebar">
+          <div className="nav-label">Console</div>
+          <nav>
+            {NAV.map((n) => (
+              <NavLink key={n.to} to={n.to} end={n.end} className="navlink">
+                <span className="nav-ico">{n.icon}</span>
+                <span>{n.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </aside>
+
+        <main className="content">
+          <Routes>
+            <Route path="/" element={<Overview />} />
+            <Route path="/org" element={<OrgPage />} />
+            <Route path="/transparency" element={<Transparency />} />
+            <Route path="/audit" element={<Audit />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/webhooks" element={<Webhooks />} />
+            <Route path="/metrics" element={<Metrics />} />
+            <Route path="/backup" element={<Backup />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+
+      <footer className="footer">
+        <span>Trust Orchestrator</span>
+        <span className="sep">/</span>
+        <span>RFC 9162 transparency · FROST threshold recovery</span>
+        <span className="spacer" />
+        <a href="https://github.com/LUMINOUX-HEHE/CNS" target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+        <span className="sep">·</span>
+        <span>admin console</span>
+      </footer>
     </div>
   );
 }

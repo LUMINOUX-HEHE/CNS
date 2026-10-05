@@ -40,3 +40,6 @@ export const IconSave = ({ size = 16 }: P) => (
 export const IconLock = ({ size = 16 }: P) => (
   <svg {...base(size)}><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 018 0v3" /></svg>
 );
+export const IconTerminal = ({ size = 16 }: P) => (
+  <svg {...base(size)}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></svg>
+);
