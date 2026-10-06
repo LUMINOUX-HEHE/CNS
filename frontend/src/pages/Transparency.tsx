@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAsync, ts, Flash, PageHead } from "../lib";
+import { verifyInclusion, verifyConsistency } from "../merkle";
 import type { OrgSummary, STH, InclusionProof, ConsistencyProof } from "../types";
 
 export default function Transparency() {
@@ -15,6 +16,7 @@ export default function Transparency() {
   const [from, setFrom] = useState("1");
   const [to, setTo] = useState("2");
   const [proof, setProof] = useState<any>(null);
+  const [verified, setVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!org && orgs.data?.orgs.length) setParams({ org: orgs.data.orgs[0].id });
@@ -35,7 +37,15 @@ export default function Transparency() {
         `/v1/orgs/${org}/ct/proof?index=${idx}&size=${size}`
       );
       setProof({ kind: "inclusion", p });
+      const root = await verifyInclusion(p.leaf_hash_hex, p.index, p.size, p.proof);
+      setVerified(root !== null && root === p.root_hex);
+      setMsg({
+        m: root === p.root_hex ? "inclusion proof verified in-browser" : "inclusion proof FAILED",
+        k: root === p.root_hex ? "ok" : "err",
+      });
     } catch (e: any) {
+      setProof(null);
+      setVerified(null);
       setMsg({ m: e.message, k: "err" });
     }
   }
@@ -46,7 +56,21 @@ export default function Transparency() {
         `/v1/orgs/${org}/ct/proof?from=${from}&to=${to}`
       );
       setProof({ kind: "consistency", p });
+      const ok = await verifyConsistency(
+        p.old_root_hex,
+        p.new_root_hex,
+        p.from,
+        p.to,
+        p.proof
+      );
+      setVerified(ok);
+      setMsg({
+        m: ok ? "consistency proof verified in-browser" : "consistency proof FAILED",
+        k: ok ? "ok" : "err",
+      });
     } catch (e: any) {
+      setProof(null);
+      setVerified(null);
       setMsg({ m: e.message, k: "err" });
     }
   }
@@ -101,7 +125,18 @@ export default function Transparency() {
         </button>
       </div>
 
-      {proof && <pre>{JSON.stringify(proof, null, 2)}</pre>}
+      {proof && (
+        <>
+          {verified !== null && (
+            <div className={`flash ${verified ? "ok" : "err"}`}>
+              {verified
+                ? "verified in-browser — recomputed root matches, no trust in the gateway required"
+                : "verification FAILED — the proof does not match the root"}
+            </div>
+          )}
+          <pre>{JSON.stringify(proof, null, 2)}</pre>
+        </>
+      )}
     </>
   );
 }

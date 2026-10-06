@@ -33,6 +33,30 @@ export default function OrgPage() {
   const [badIndex, setBadIndex] = useState("");
   const [shards, setShards] = useState("");
 
+  // Client-side roster of the documented W1..W5 watchdogs. The API has no
+  // GET for scores (POST-only), so this console tracks the last score posted
+  // per node and shows the derived 3-of-5 quorum verdict.
+  const WATCHDOGS = ["W1", "W2", "W3", "W4", "W5"];
+  const [roster, setRoster] = useState<Record<string, number | null>>(
+    Object.fromEntries(WATCHDOGS.map((w) => [w, null]))
+  );
+
+  async function postScore(nodeID: string, s: number) {
+    try {
+      await api.post(`/v1/orgs/${org}/scores`, {
+        node_id: nodeID,
+        score: s,
+        p_value: s < 25 ? 0.01 : 1,
+        evidence: null,
+      });
+      setRoster((r) => ({ ...r, [nodeID]: s }));
+      flash(`${nodeID} score=${s} ingested`, "ok");
+      setTimeout(reload, 350);
+    } catch (e: any) {
+      flash(e.message, "err");
+    }
+  }
+
   useEffect(() => {
     if (!org && orgs.data?.orgs.length) {
       setParams({ org: orgs.data.orgs[0].id });
@@ -96,17 +120,20 @@ export default function OrgPage() {
   }
 
   async function doRecover() {
-    let parsed: unknown;
+    let parsed: any;
     try {
       parsed = JSON.parse(shards);
     } catch {
-      return flash("shards must be JSON", "err");
+      return flash("fork artifact must be JSON", "err");
+    }
+    if (!parsed || !parsed.timeline || !parsed.commit) {
+      return flash("fork artifact needs {timeline, commit}", "err");
     }
     try {
-      const d: any = await api.post(`/v1/orgs/${org}/recover`, { shards: parsed });
+      const d: any = await api.post(`/v1/orgs/${org}/recover`, parsed);
       flash(
-        `recovered: epoch ${d.epoch}, ${d.issued?.length ?? 0} re-issued, verify=${d.verify}`,
-        d.verify ? "ok" : "err"
+        `recovered: epoch ${d.epoch}, ${d.issued ?? 0} members, head ${short(d.head)}`,
+        "ok"
       );
       reload();
     } catch (e: any) {
@@ -184,10 +211,56 @@ export default function OrgPage() {
       </section>
 
       <section>
-        <h3>Watchdog scores</h3>
+        <h3>Watchdog ensemble</h3>
         <p className="muted">
-          Post node scores; ≥3/5 below threshold raises a DETECTED verdict.
+          Five independent watchdogs (threshold 25). DETECTED iff ≥3 of 5 score below
+          threshold. Click a node to post a passing (100) or failing (0) score.
         </p>
+        <table>
+          <thead>
+            <tr>
+              <th>node</th>
+              <th>kind</th>
+              <th>last score</th>
+              <th>verdict</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {WATCHDOGS.map((w, i) => {
+              const s = roster[w];
+              const bad = s !== null && s < 25;
+              return (
+                <tr key={w}>
+                  <td>{w}</td>
+                  <td className="muted">
+                    {["rate_cusum", "log_integrity", "graph_anomaly", "external_probe", "behavior_baseline"][i]}
+                  </td>
+                  <td>{s === null ? "—" : s}</td>
+                  <td className={bad ? "err" : s === null ? "muted" : "ok"}>
+                    {s === null ? "no data" : bad ? "alarmed" : "healthy"}
+                  </td>
+                  <td>
+                    <button onClick={() => postScore(w, 0)} disabled={!org} className="danger">
+                      fail
+                    </button>{" "}
+                    <button onClick={() => postScore(w, 100)} disabled={!org}>
+                      pass
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="muted">
+          quorum: {WATCHDOGS.filter((w) => roster[w] !== null && (roster[w] as number) < 25).length}/3
+          {" · "}
+          {WATCHDOGS.filter((w) => roster[w] !== null && (roster[w] as number) < 25).length >= 3
+            ? "DETECTED"
+            : "not detected"}
+        </p>
+
         <form className="form-row" onSubmit={doScore}>
           <input placeholder="node_id" value={node} onChange={(e) => setNode(e.target.value)} />
           <input
@@ -203,18 +276,22 @@ export default function OrgPage() {
             onChange={(e) => setBadIndex(e.target.value)}
           />
           <button className="primary" type="submit" disabled={!org}>
-            Post score
+            Post custom score
           </button>
         </form>
       </section>
 
       <section>
         <h3>Recovery</h3>
-        <p className="muted">Council-authorized fork: paste shards JSON.</p>
+        <p className="muted">
+          Council-authorized fork: paste the <code>{`{timeline, commit}`}</code> artifact
+          produced by <code>to-council recover</code>. The gateway verifies the FROST
+          threshold signature against its council anchor before adopting.
+        </p>
         <div className="form-row">
           <textarea
             rows={3}
-            placeholder='[{"x":1,"y":"...","len":32}, ...]'
+            placeholder='{"timeline": {...}, "commit": {...}}'
             value={shards}
             onChange={(e) => setShards(e.target.value)}
             style={{ flex: 3, minWidth: 240 }}
