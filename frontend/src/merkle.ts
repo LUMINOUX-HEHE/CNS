@@ -124,3 +124,12 @@ export async function verifyConsistency(
 // the signed tree head is done server-side; here we only expose the root
 // so the page can show it. (kept minimal on purpose)
 export { bytesToHex, hexToBytes };
+
+// hexToB64 re-encodes a hex string as base64 — the gossip endpoint expects
+// root_b64 / signature_b64 (Go decodes []byte from base64 JSON).
+export function hexToB64(hex: string): string {
+  const bytes = hexToBytes(hex);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
