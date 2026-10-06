@@ -869,15 +869,24 @@ func (s *Store) handleAudit(w http.ResponseWriter, r *http.Request, t *Tenant) {
 			"actions": s.SearchAudit(org, q.Get("user"), q.Get("method"), qint(r, "since"), qint(r, "until"), int(qint(r, "limit")))})
 		return
 	}
-	// source=events (default): timeline events across visible orgs.
+	// source=events (default): timeline events across visible orgs,
+	// optionally narrowed to one org (?org=).
 	typ, identity, cert := q.Get("type"), q.Get("identity"), q.Get("cert")
+	orgFilter := q.Get("org")
 	since, until := qint(r, "since"), qint(r, "until")
 	limit := qint(r, "limit")
 	if limit <= 0 || limit > 1000 {
 		limit = 200
 	}
+	if orgFilter != "" && !u.inOrg(orgFilter) {
+		writeErr(w, http.StatusForbidden, errors.New("not scoped to that org"))
+		return
+	}
 	out := []map[string]any{}
 	for _, org := range s.visibleOrgs(u) {
+		if orgFilter != "" && org.ID != orgFilter {
+			continue
+		}
 		for _, e := range org.tl.Events() {
 			if typ != "" && e.Type != typ {
 				continue

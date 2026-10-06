@@ -69,12 +69,12 @@ export default function Webhooks() {
         </thead>
         <tbody>
           {(data?.webhooks || []).map((w) => (
-            <tr key={w.ID}>
-              <td className="hash">{w.ID}</td>
-              <td>{w.URL}</td>
-              <td>{(w.Events || []).join(",") || "all"}</td>
+            <tr key={w.id}>
+              <td className="hash">{w.id}</td>
+              <td>{w.url}</td>
+              <td>{(w.events || []).join(",") || "all"}</td>
               <td>
-                <button className="danger" onClick={() => remove(w.ID)}>
+                <button className="danger" onClick={() => remove(w.id)}>
                   delete
                 </button>
               </td>

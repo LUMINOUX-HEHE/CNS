@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAsync, ts, short, Flash, PageHead } from "../lib";
-import type { OrgSummary, OrgDetail, TimelineEvent, TrustState } from "../types";
+import type {
+  OrgSummary,
+  OrgDetail,
+  TimelineEvent,
+  TrustState,
+  OrgPubKey,
+  TrustGraph,
+} from "../types";
 
 export default function OrgPage() {
   const [params, setParams] = useSearchParams();
@@ -20,6 +27,14 @@ export default function OrgPage() {
   );
   const state = useAsync<TrustState>(
     () => (org ? api.get(`/v1/orgs/${org}/state`) : Promise.resolve({ certs: {} })),
+    [org]
+  );
+  const pubkey = useAsync<OrgPubKey>(
+    () => (org ? api.get(`/v1/orgs/${org}/pubkey`) : Promise.resolve(null as any)),
+    [org]
+  );
+  const graph = useAsync<TrustGraph>(
+    () => (org ? api.get(`/v1/orgs/${org}/graph`) : Promise.resolve(null as any)),
     [org]
   );
 
@@ -71,6 +86,8 @@ export default function OrgPage() {
     detail.reload();
     timeline.reload();
     state.reload();
+    pubkey.reload();
+    graph.reload();
   }
 
   async function doIssue(e: React.FormEvent) {
@@ -301,6 +318,49 @@ export default function OrgPage() {
           </button>
         </div>
       </section>
+
+      <section>
+        <h3>Verification key</h3>
+        <p className="muted">
+          The org timeline's Ed25519 public key — verify signatures without trusting the gateway.
+        </p>
+        {pubkey.data ? (
+          <div className="hash" style={{ wordBreak: "break-all" }}>
+            {pubkey.data.pubkey_hex}
+          </div>
+        ) : (
+          <p className="muted">no key</p>
+        )}
+      </section>
+
+      <h3>Trust graph</h3>
+      <p className="muted">
+        Issuance edges: a certificate issued "via" another. Reachability defines the rollback
+        blast radius.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>from</th>
+            <th>to</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(graph.data?.edges || []).map((e, i) => (
+            <tr key={i}>
+              <td className="hash">{e[0]}</td>
+              <td className="hash">{e[1]}</td>
+            </tr>
+          ))}
+          {(!graph.data || graph.data.edges.length === 0) && (
+            <tr>
+              <td colSpan={2} className="muted">
+                no issuance edges
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
 
       <h3>Timeline</h3>
       <table>

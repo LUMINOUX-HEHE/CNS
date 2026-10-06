@@ -40,15 +40,28 @@ export interface UserRow {
   tokens: number;
 }
 
+// The API serialises Webhook with lowercase json tags (store.go:126):
+// id / url / secret / events / active.
 export interface WebhookRow {
-  ID: string;
-  URL: string;
-  Events: string[] | null;
-  Active: boolean;
+  id: string;
+  url: string;
+  events: string[] | null;
+  active: boolean;
 }
 
 export interface AuditEvent extends TimelineEvent {
   org: string;
+}
+
+export interface OrgPubKey {
+  org: string;
+  pubkey_hex: string;
+}
+
+export interface TrustGraph {
+  org: string;
+  nodes: string[];
+  edges: [string, string][];
 }
 
 export interface STH {
