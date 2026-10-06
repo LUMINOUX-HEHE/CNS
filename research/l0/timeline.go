@@ -476,8 +476,8 @@ func UnmarshalTimeline(b []byte) (*Timeline, error) {
 }
 
 type Cert struct {
-	Identity string
-	Revoked  bool
+	Identity string `json:"identity"`
+	Revoked  bool   `json:"revoked"`
 }
 
 type issuePayload struct {

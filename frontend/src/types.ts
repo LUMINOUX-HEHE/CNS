@@ -25,8 +25,8 @@ export interface TimelineEvent {
 }
 
 export interface CertState {
-  Identity: string;
-  Revoked: boolean;
+  identity: string;
+  revoked: boolean;
 }
 
 export interface TrustState {

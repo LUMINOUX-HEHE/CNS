@@ -441,9 +441,9 @@ export default function OrgPage() {
           {certs.map(([id, c]) => (
             <tr key={id}>
               <td>{id}</td>
-              <td>{c.Identity}</td>
-              <td className={c.Revoked ? "err" : "ok"}>
-                {c.Revoked ? "revoked" : "valid"}
+              <td>{c.identity}</td>
+              <td className={c.revoked ? "err" : "ok"}>
+                {c.revoked ? "revoked" : "valid"}
               </td>
             </tr>
           ))}
