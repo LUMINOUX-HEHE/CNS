@@ -91,6 +91,7 @@ func NewGateway(dir, bootstrapToken string) (*Store, string, error) {
 func (s *Store) Handler() http.Handler {
 	mux := http.NewServeMux()
 	s.route(mux, "GET /v1/health", nil, false, s.handleHealth)
+	s.route(mux, "GET /v1/me", nil, false, s.handleMe)
 	s.route(mux, "POST /v1/users", []string{RoleAdmin}, false, s.handleCreateUser)
 	s.route(mux, "GET /v1/users", []string{RoleAdmin}, false, s.handleListUsers)
 	s.route(mux, "POST /v1/users/{id}/tokens", []string{RoleAdmin}, false, s.handleUserToken)
@@ -306,6 +307,17 @@ func (s *Store) authenticate(r *http.Request) (*User, string, error) {
 
 func (s *Store) handleHealth(w http.ResponseWriter, r *http.Request, t *Tenant) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "ts": time.Now().Unix()})
+}
+
+// handleMe reports the authenticated user's identity/role/scope — the UI
+// uses it to render role-aware navigation.
+func (s *Store) handleMe(w http.ResponseWriter, r *http.Request, t *Tenant) {
+	u := mustUser(r)
+	if u == nil {
+		writeErr(w, http.StatusUnauthorized, errors.New("no user"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": u.ID, "role": u.Role, "orgs": u.Orgs})
 }
 
 type createUserReq struct {

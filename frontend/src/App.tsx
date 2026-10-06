@@ -14,21 +14,27 @@ import Metrics from "./pages/Metrics";
 import Backup from "./pages/Backup";
 import Transparency from "./pages/Transparency";
 
+// Each nav entry lists the roles allowed to see it (mirrors api.go RBAC).
+// A missing `roles` means every authenticated role.
 const NAV = [
   { to: "/", label: "Overview", end: true, icon: <IconGrid /> },
   { to: "/org", label: "Org", icon: <IconShield /> },
   { to: "/transparency", label: "Transparency", icon: <IconLock /> },
-  { to: "/audit", label: "Audit", icon: <IconSearch /> },
-  { to: "/users", label: "Users", icon: <IconUsers /> },
-  { to: "/webhooks", label: "Webhooks", icon: <IconWebhook /> },
+  { to: "/audit", label: "Audit", icon: <IconSearch />, roles: ["auditor", "operator", "admin"] },
+  { to: "/users", label: "Users", icon: <IconUsers />, roles: ["admin"] },
+  { to: "/webhooks", label: "Webhooks", icon: <IconWebhook />, roles: ["admin"] },
   { to: "/metrics", label: "Metrics", icon: <IconChart /> },
-  { to: "/backup", label: "Backup", icon: <IconSave /> },
+  { to: "/backup", label: "Backup", icon: <IconSave />, roles: ["admin"] },
 ];
 
 export default function App() {
-  const { connected, logout } = useAuth();
+  const { connected, logout, me } = useAuth();
 
   if (!connected) return <Login />;
+
+  const role = me?.role || "";
+  // Until /v1/me resolves, show the full nav (the API still enforces RBAC).
+  const nav = me ? NAV.filter((n) => !n.roles || n.roles.includes(role)) : NAV;
 
   return (
     <div className="app">
@@ -39,7 +45,7 @@ export default function App() {
         </div>
         <div className="spacer" />
         <span className="status">
-          <span className="dot" /> secure session
+          <span className="dot" /> {role || "session"}
         </span>
         <button onClick={logout}>Disconnect</button>
       </header>
@@ -48,7 +54,7 @@ export default function App() {
         <aside className="sidebar">
           <div className="nav-label">Console</div>
           <nav>
-            {NAV.map((n) => (
+            {nav.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} className="navlink">
                 <span className="nav-ico">{n.icon}</span>
                 <span>{n.label}</span>
