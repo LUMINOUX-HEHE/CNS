@@ -21,9 +21,13 @@ export default function OrgPage() {
     () => (org ? api.get(`/v1/orgs/${org}`) : Promise.resolve(null as any)),
     [org]
   );
-  const timeline = useAsync<{ events: TimelineEvent[] }>(
-    () => (org ? api.get(`/v1/orgs/${org}/timeline?limit=100`) : Promise.resolve({ events: [] })),
-    [org]
+  const [tlimit, setTlimit] = useState(100);
+  const timeline = useAsync<{ events: TimelineEvent[]; count: number; total: number }>(
+    () =>
+      org
+        ? api.get(`/v1/orgs/${org}/timeline?limit=${tlimit}`)
+        : Promise.resolve({ events: [], count: 0, total: 0 }),
+    [org, tlimit]
   );
   const state = useAsync<TrustState>(
     () => (org ? api.get(`/v1/orgs/${org}/state`) : Promise.resolve({ certs: {} })),
@@ -382,6 +386,16 @@ export default function OrgPage() {
       </table>
 
       <h3>Timeline</h3>
+      <div className="form-row">
+        <span className="muted">
+          showing {timeline.data?.count ?? 0} of {timeline.data?.total ?? 0}
+        </span>
+        <select value={tlimit} onChange={(e) => setTlimit(parseInt(e.target.value, 10))}>
+          <option value={100}>100</option>
+          <option value={200}>200</option>
+          <option value={500}>500</option>
+        </select>
+      </div>
       <table>
         <thead>
           <tr>
