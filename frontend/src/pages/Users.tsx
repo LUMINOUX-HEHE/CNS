@@ -10,6 +10,8 @@ export default function Users() {
   const [role, setRole] = useState("operator");
   const [orgs, setOrgs] = useState("");
   const [msg, setMsg] = useState<{ m: string; k: "ok" | "err" | "" }>({ m: "", k: "" });
+  const [scopeFor, setScopeFor] = useState<string | null>(null);
+  const [scopeOrgs, setScopeOrgs] = useState("");
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -22,6 +24,23 @@ export default function Users() {
       const d: any = await api.post("/v1/users", { id: id.trim(), role, orgs: list });
       setMsg({ m: `user ${id} created — token: ${d.token}`, k: "ok" });
       setId("");
+      reload();
+    } catch (e: any) {
+      setMsg({ m: e.message, k: "err" });
+    }
+  }
+
+  // Mint an additional token, optionally scoped to a subset of orgs.
+  async function mintToken(userID: string) {
+    const list = scopeOrgs
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    try {
+      const d: any = await api.post(`/v1/users/${userID}/tokens`, { orgs: list });
+      setMsg({ m: `token for ${userID} — ${d.token}`, k: "ok" });
+      setScopeFor(null);
+      setScopeOrgs("");
       reload();
     } catch (e: any) {
       setMsg({ m: e.message, k: "err" });
@@ -59,6 +78,7 @@ export default function Users() {
             <th>role</th>
             <th>orgs</th>
             <th>tokens</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -68,6 +88,25 @@ export default function Users() {
               <td>{u.role}</td>
               <td>{(u.orgs || []).join(", ") || "all"}</td>
               <td>{u.tokens}</td>
+              <td>
+                {scopeFor === u.id ? (
+                  <>
+                    <input
+                      placeholder="orgs (comma, empty=inherit)"
+                      value={scopeOrgs}
+                      onChange={(e) => setScopeOrgs(e.target.value)}
+                    />{" "}
+                    <button className="primary" onClick={() => mintToken(u.id)}>
+                      mint
+                    </button>{" "}
+                    <button onClick={() => setScopeFor(null)}>cancel</button>
+                  </>
+                ) : (
+                  <button onClick={() => { setScopeFor(u.id); setScopeOrgs(""); }}>
+                    new token
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

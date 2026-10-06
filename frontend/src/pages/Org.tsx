@@ -38,6 +38,18 @@ export default function OrgPage() {
     [org]
   );
 
+  // Live mode: poll the org's detail so a DETECTED verdict appears without
+  // a manual Refresh (the detection is raised by watchdog scores posted
+  // elsewhere / by other operators).
+  const [auto, setAuto] = useState(false);
+  useEffect(() => {
+    if (!auto || !org) return;
+    const id = setInterval(() => reload(), 3000);
+    return () => clearInterval(id);
+    // reload is a stable function declaration (hoisted)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, org]);
+
   // form fields
   const [cert, setCert] = useState("");
   const [identity, setIdentity] = useState("");
@@ -185,6 +197,13 @@ export default function OrgPage() {
           ))}
         </select>{" "}
         <button onClick={reload}>Refresh</button>{" "}
+        <button
+          className={auto ? "primary" : ""}
+          onClick={() => setAuto((a) => !a)}
+          title="poll every 3s"
+        >
+          {auto ? "Live: on" : "Live: off"}
+        </button>{" "}
         <button className="danger" onClick={doDelete} disabled={!org}>
           Delete org
         </button>
