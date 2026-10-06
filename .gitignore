@@ -27,6 +27,7 @@ frontend/node_modules/
 # local demo state / logs
 demo-data/
 demo-data.log
+*.log
 .kilo/
 
 # ui-ux-pro-max generated skill + design system

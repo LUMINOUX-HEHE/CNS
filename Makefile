@@ -7,7 +7,7 @@ DOCKER   := docker
 GOOS_    := linux
 GOARCH_  := amd64
 
-.PHONY: all build build-linux test benchmark kill-tests model-check model-check-gateway model-check-pq model-check-extra model-check-mutations model-check-mutations-extra fleet-smoke docker-build helm-lint terraform-validate sbom clean
+.PHONY: all build ui-build ui-dev diagram build-linux test benchmark kill-tests model-check model-check-gateway model-check-pq model-check-extra model-check-mutations model-check-mutations-extra fleet-smoke docker-build helm-lint terraform-validate sbom clean
 
 all: build
 
@@ -20,6 +20,11 @@ ui-build:
 # ui-dev: Vite dev server on :5173 proxying /v1 to a gateway on :8080.
 ui-dev:
 	cd frontend && npm run dev
+
+# diagram: render docs/architecture.png from tools/gen_architecture.py
+# (Pillow, stdlib-only otherwise). Requires Python 3 + Pillow.
+diagram:
+	python3 tools/gen_architecture.py
 
 build:
 	$(GO) build -o $(BIN)/to-tool ./cmd/to
