@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
-import { useAsync, ts, Flash, PageHead } from "../lib";
+import { useAsync, ts, Flash, PageHead, Spinner } from "../lib";
 import type { OrgSummary } from "../types";
 
 export default function Overview() {
@@ -31,6 +31,7 @@ export default function Overview() {
       </PageHead>
       <Flash msg={msg.m} kind={msg.k} />
       {res.errMsg && <Flash msg={res.errMsg} kind="err" />}
+      <Spinner show={res.loading && !data} label="loading orgs…" />
 
       <form className="form-row" onSubmit={create}>
         <input

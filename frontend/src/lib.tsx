@@ -36,6 +36,11 @@ export function Flash({ msg, kind }: { msg: string; kind: "ok" | "err" | "" }) {
   return <div className={`flash ${kind}`}>{msg}</div>;
 }
 
+export function Spinner({ show, label }: { show: boolean; label?: string }) {
+  if (!show) return null;
+  return <div className="muted" style={{ padding: "6px 0" }}>{label || "loading…"}</div>;
+}
+
 export function PageHead({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
     <div className="topbar">
