@@ -143,7 +143,10 @@ func (b *Bench) simulateWith(tl *Timeline, log *AuditorLog, batches [][]TrustEve
 		for _, e := range batch {
 			tl.Append(e.Type, e.Payload, e.Timestamp)
 			if mirrorUntil < 0 || mirrored < mirrorUntil {
-				log.Mirror(e)
+				// Mirror the SIGNED appended event, not the raw batch event
+				// (whose Signature is nil): the auditor head must equal the
+				// timeline head for W4 to read a clean mirror.
+				log.Mirror(tl.events[len(tl.events)-1])
 				mirrored++
 			}
 		}
@@ -430,7 +433,9 @@ func (b *Bench) ScenarioS6() Metrics {
 		for _, e := range batch {
 			tl.Append(e.Type, e.Payload, e.Timestamp)
 			if i < 8 {
-				log.Mirror(e)
+				// Mirror the SIGNED appended event so the auditor head is
+				// clean until the attacker suppresses mirroring (W4's role).
+				log.Mirror(tl.events[len(tl.events)-1])
 			}
 		}
 		if i == 8 { // attacker rewrites history; auditors' mirror stays clean
