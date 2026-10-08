@@ -2,10 +2,11 @@ import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth";
 import {
   IconGrid, IconShield, IconLock, IconSearch, IconUsers,
-  IconWebhook, IconChart, IconSave, IconTerminal,
+  IconWebhook, IconChart, IconSave, IconTerminal, IconPulse,
 } from "./icons";
 import Boundary from "./Boundary";
 import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
 import Overview from "./pages/Overview";
 import OrgPage from "./pages/Org";
 import Audit from "./pages/Audit";
@@ -18,7 +19,8 @@ import Transparency from "./pages/Transparency";
 // Each nav entry lists the roles allowed to see it (mirrors api.go RBAC).
 // A missing `roles` means every authenticated role.
 const NAV = [
-  { to: "/", label: "Overview", end: true, icon: <IconGrid /> },
+  { to: "/", label: "Dashboard", end: true, icon: <IconPulse /> },
+  { to: "/overview", label: "Overview", icon: <IconGrid /> },
   { to: "/org", label: "Org", icon: <IconShield /> },
   { to: "/transparency", label: "Transparency", icon: <IconLock /> },
   { to: "/audit", label: "Audit", icon: <IconSearch />, roles: ["auditor", "operator", "admin"] },
@@ -67,7 +69,8 @@ export default function App() {
         <main className="content">
           <Boundary>
             <Routes>
-              <Route path="/" element={<Overview />} />
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/overview" element={<Overview />} />
               <Route path="/org" element={<OrgPage />} />
               <Route path="/transparency" element={<Transparency />} />
               <Route path="/audit" element={<Audit />} />

@@ -30,6 +30,10 @@ demo-data.log
 *.log
 .kilo/
 
+# local gateway state — holds gateway.key (the at-rest seal key) and tenant data
+data/
+data-fresh/
+
 # ui-ux-pro-max generated skill + design system
 design-system/
 .agents/

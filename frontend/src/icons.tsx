@@ -43,3 +43,6 @@ export const IconLock = ({ size = 16 }: P) => (
 export const IconTerminal = ({ size = 16 }: P) => (
   <svg {...base(size)}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9l3 3-3 3M13 15h4" /></svg>
 );
+export const IconPulse = ({ size = 16 }: P) => (
+  <svg {...base(size)}><path d="M3 12h4l2-6 4 12 2-6h6" /></svg>
+);

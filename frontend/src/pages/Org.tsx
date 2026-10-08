@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import { useAsync, ts, short, Flash, PageHead } from "../lib";
+import { useAsync, short, Flash, PageHead } from "../lib";
+import { Gauge, QuorumMeter, TrustGraphSVG, Timeline, StatTile, LivePulse } from "../viz";
 import type {
   OrgSummary,
   OrgDetail,
@@ -10,6 +11,14 @@ import type {
   OrgPubKey,
   TrustGraph,
 } from "../types";
+
+const WATCHDOGS = [
+  { id: "W1", kind: "rate_cusum" },
+  { id: "W2", kind: "log_integrity" },
+  { id: "W3", kind: "graph_anomaly" },
+  { id: "W4", kind: "external_probe" },
+  { id: "W5", kind: "behavior_baseline" },
+];
 
 export default function OrgPage() {
   const [params, setParams] = useSearchParams();
@@ -21,7 +30,7 @@ export default function OrgPage() {
     () => (org ? api.get(`/v1/orgs/${org}`) : Promise.resolve(null as any)),
     [org]
   );
-  const [tlimit, setTlimit] = useState(100);
+  const [tlimit, setTlimit] = useState(200);
   const timeline = useAsync<{ events: TimelineEvent[]; count: number; total: number }>(
     () =>
       org
@@ -50,7 +59,6 @@ export default function OrgPage() {
     if (!auto || !org) return;
     const id = setInterval(() => reload(), 3000);
     return () => clearInterval(id);
-    // reload is a stable function declaration (hoisted)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto, org]);
 
@@ -67,7 +75,6 @@ export default function OrgPage() {
   // Client-side roster of the documented W1..W5 watchdogs. The API has no
   // GET for scores (POST-only), so this console tracks the last score posted
   // per node and shows the derived 3-of-5 quorum verdict.
-  const WATCHDOGS = ["W1", "W2", "W3", "W4", "W5"];
   const [roster, setRoster] = useState<Record<string, number | null>>(
     Object.fromEntries(WATCHDOGS.map((w) => [w, null]))
   );
@@ -188,10 +195,16 @@ export default function OrgPage() {
 
   const events = timeline.data?.events || [];
   const certs = Object.entries(state.data?.certs || {});
+  const revoked = certs.filter(([, c]) => c.revoked).length;
+  const alarmedCount = WATCHDOGS.filter((w) => {
+    const s = roster[w.id];
+    return s !== null && s < 25;
+  }).length;
+  const affected = new Set(certs.filter(([, c]) => c.revoked).map(([id]) => id));
 
   return (
     <>
-      <PageHead title="Org">
+      <PageHead title="Org console">
         <select value={org} onChange={(e) => setParams({ org: e.target.value })}>
           <option value="">— select org —</option>
           {(orgs.data?.orgs || []).map((o) => (
@@ -216,114 +229,86 @@ export default function OrgPage() {
       {detail.errMsg && <Flash msg={detail.errMsg} kind="err" />}
 
       {detail.data && (
-        <h3>
-          {detail.data.name}{" "}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+          <h3 style={{ margin: 0 }}>{detail.data.name}</h3>
           <span className={`badge ${detail.data.detected ? "detected" : "healthy"}`}>
             {detail.data.detected ? "DETECTED" : "healthy"}
           </span>
-        </h3>
+          <LivePulse on={auto} label={auto ? "polling 3s" : "manual"} tone={detail.data.detected ? "bad" : undefined} />
+        </div>
       )}
 
-      <section>
-        <h3>Issue / Revoke</h3>
-        <form className="form-row" onSubmit={doIssue}>
-          <input placeholder="cert_id" value={cert} onChange={(e) => setCert(e.target.value)} />
-          <input
-            placeholder="identity"
-            value={identity}
-            onChange={(e) => setIdentity(e.target.value)}
-          />
-          <input placeholder="via (optional)" value={via} onChange={(e) => setVia(e.target.value)} />
-          <button className="primary" type="submit" disabled={!org}>
-            Issue
-          </button>
-        </form>
-        <form className="form-row" onSubmit={doRevoke}>
-          <input
-            placeholder="cert_id to revoke"
-            value={revoke}
-            onChange={(e) => setRevoke(e.target.value)}
-          />
-          <button type="submit" disabled={!org}>
-            Revoke
-          </button>
-        </form>
-      </section>
+      <div className="grid cols-4 stagger" style={{ marginBottom: 14 }}>
+        <StatTile k="Events" v={timeline.data?.total ?? 0} sub={`${events.length} shown`} />
+        <StatTile k="Certs valid" v={certs.length - revoked} tone="ok" sub={`${revoked} revoked`} />
+        <StatTile
+          k="Alarmed"
+          v={`${alarmedCount}/5`}
+          tone={alarmedCount >= 3 ? "bad" : alarmedCount > 0 ? "warn" : "ok"}
+          sub="quorum ≥3"
+        />
+        <StatTile k="Issuance edges" v={graph.data?.edges.length ?? 0} tone="info" />
+      </div>
 
-      <section>
-        <h3>Watchdog ensemble</h3>
-        <p className="muted">
-          Five independent watchdogs (threshold 25). DETECTED iff ≥3 of 5 score below
-          threshold. Click a node to post a passing (100) or failing (0) score.
+      <section className="panel">
+        <div className="panel-head"><h3>Watchdog ensemble</h3></div>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Five independent watchdogs (threshold 25). DETECTED iff ≥3 of 5 score below threshold.
         </p>
-        <table>
-          <thead>
-            <tr>
-              <th>node</th>
-              <th>kind</th>
-              <th>last score</th>
-              <th>verdict</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {WATCHDOGS.map((w, i) => {
-              const s = roster[w];
-              const bad = s !== null && s < 25;
-              return (
-                <tr key={w}>
-                  <td>{w}</td>
-                  <td className="muted">
-                    {["rate_cusum", "log_integrity", "graph_anomaly", "external_probe", "behavior_baseline"][i]}
-                  </td>
-                  <td>{s === null ? "—" : s}</td>
-                  <td className={bad ? "err" : s === null ? "muted" : "ok"}>
-                    {s === null ? "no data" : bad ? "alarmed" : "healthy"}
-                  </td>
-                  <td>
-                    <button onClick={() => postScore(w, 0)} disabled={!org} className="danger">
-                      fail
-                    </button>{" "}
-                    <button onClick={() => postScore(w, 100)} disabled={!org}>
-                      pass
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <p className="muted">
-          quorum: {WATCHDOGS.filter((w) => roster[w] !== null && (roster[w] as number) < 25).length}/3
-          {" · "}
-          {WATCHDOGS.filter((w) => roster[w] !== null && (roster[w] as number) < 25).length >= 3
-            ? "DETECTED"
-            : "not detected"}
-        </p>
-
+        <div className="wd-grid">
+          {WATCHDOGS.map((w) => {
+            const s = roster[w.id];
+            const alarmed = s !== null && s < 25;
+            return (
+              <div key={w.id} className={`wd ${alarmed ? "alarmed" : "healthy"}`}>
+                <div className="wd-top">
+                  <span className="wd-id">{w.id}</span>
+                  <span className={`chip ${alarmed ? "c-detected" : ""}`}>
+                    {s === null ? "no data" : alarmed ? "ALARMED" : "HEALTHY"}
+                  </span>
+                </div>
+                <Gauge score={s} size={82} label={w.kind} />
+                <div className="wd-foot">
+                  <span>{w.kind}</span>
+                  <span>
+                    <button className="danger" style={{ padding: "2px 7px", fontSize: 10 }}
+                      onClick={() => postScore(w.id, 0)} disabled={!org}>fail</button>{" "}
+                    <button style={{ padding: "2px 7px", fontSize: 10 }}
+                      onClick={() => postScore(w.id, 100)} disabled={!org}>pass</button>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <QuorumMeter alarmed={alarmedCount} />
+        </div>
         <form className="form-row" onSubmit={doScore}>
           <input placeholder="node_id" value={node} onChange={(e) => setNode(e.target.value)} />
-          <input
-            type="number"
-            placeholder="score"
-            value={score}
-            onChange={(e) => setScore(e.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="bad_index (optional)"
-            value={badIndex}
-            onChange={(e) => setBadIndex(e.target.value)}
-          />
-          <button className="primary" type="submit" disabled={!org}>
-            Post custom score
-          </button>
+          <input type="number" placeholder="score" value={score} onChange={(e) => setScore(e.target.value)} />
+          <input type="number" placeholder="bad_index (optional)" value={badIndex} onChange={(e) => setBadIndex(e.target.value)} />
+          <button className="primary" type="submit" disabled={!org}>Post custom score</button>
         </form>
       </section>
 
-      <section>
-        <h3>Recovery</h3>
-        <p className="muted">
+      <section className="panel">
+        <div className="panel-head"><h3>Issue / revoke</h3></div>
+        <form className="form-row" onSubmit={doIssue}>
+          <input placeholder="cert_id" value={cert} onChange={(e) => setCert(e.target.value)} />
+          <input placeholder="identity" value={identity} onChange={(e) => setIdentity(e.target.value)} />
+          <input placeholder="via (optional)" value={via} onChange={(e) => setVia(e.target.value)} />
+          <button className="primary" type="submit" disabled={!org}>Issue</button>
+        </form>
+        <form className="form-row" onSubmit={doRevoke}>
+          <input placeholder="cert_id to revoke" value={revoke} onChange={(e) => setRevoke(e.target.value)} />
+          <button type="submit" disabled={!org}>Revoke</button>
+        </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head"><h3>Recovery</h3></div>
+        <p className="muted" style={{ marginTop: 0 }}>
           Council-authorized fork: paste the <code>{`{timeline, commit}`}</code> artifact
           produced by <code>to-council recover</code>. The gateway verifies the FROST
           threshold signature against its council anchor before adopting.
@@ -336,126 +321,76 @@ export default function OrgPage() {
             onChange={(e) => setShards(e.target.value)}
             style={{ flex: 3, minWidth: 240 }}
           />
-          <button onClick={doRecover} disabled={!org}>
-            Recover
-          </button>
+          <button onClick={doRecover} disabled={!org}>Recover</button>
         </div>
       </section>
 
-      <section>
-        <h3>Verification key</h3>
-        <p className="muted">
+      <div className="grid dash" style={{ marginTop: 6 }}>
+        <section className="panel">
+          <div className="panel-head">
+            <h3>Signed timeline</h3>
+            <select value={tlimit} onChange={(e) => setTlimit(parseInt(e.target.value, 10))}>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+              <option value={500}>500</option>
+            </select>
+          </div>
+          <Timeline events={events} limit={40} />
+        </section>
+
+        <section className="panel">
+          <div className="panel-head">
+            <h3>Trust graph · blast radius</h3>
+            <span className="muted" style={{ fontSize: 11 }}>
+              {graph.data ? `${graph.data.nodes.length} nodes` : "—"}
+            </span>
+          </div>
+          {graph.data ? (
+            <TrustGraphSVG graph={graph.data} affected={affected} width={480} />
+          ) : (
+            <p className="muted">no issuance edges</p>
+          )}
+        </section>
+      </div>
+
+      <section className="panel">
+        <div className="panel-head"><h3>Verification key</h3></div>
+        <p className="muted" style={{ marginTop: 0 }}>
           The org timeline's Ed25519 public key — verify signatures without trusting the gateway.
         </p>
         {pubkey.data ? (
-          <div className="hash" style={{ wordBreak: "break-all" }}>
-            {pubkey.data.pubkey_hex}
-          </div>
+          <div className="hash" style={{ wordBreak: "break-all" }}>{pubkey.data.pubkey_hex}</div>
         ) : (
           <p className="muted">no key</p>
         )}
       </section>
 
-      <h3>Trust graph</h3>
-      <p className="muted">
-        Issuance edges: a certificate issued "via" another. Reachability defines the rollback
-        blast radius.
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>from</th>
-            <th>to</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(graph.data?.edges || []).map((e, i) => (
-            <tr key={i}>
-              <td className="hash">{e[0]}</td>
-              <td className="hash">{e[1]}</td>
-            </tr>
-          ))}
-          {(!graph.data || graph.data.edges.length === 0) && (
+      <section className="panel">
+        <div className="panel-head"><h3>Trust state</h3></div>
+        <table>
+          <thead>
             <tr>
-              <td colSpan={2} className="muted">
-                no issuance edges
-              </td>
+              <th>cert</th>
+              <th>identity</th>
+              <th>status</th>
             </tr>
-          )}
-        </tbody>
-      </table>
-
-      <h3>Timeline</h3>
-      <div className="form-row">
-        <span className="muted">
-          showing {timeline.data?.count ?? 0} of {timeline.data?.total ?? 0}
-        </span>
-        <select value={tlimit} onChange={(e) => setTlimit(parseInt(e.target.value, 10))}>
-          <option value={100}>100</option>
-          <option value={200}>200</option>
-          <option value={500}>500</option>
-        </select>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>type</th>
-            <th>ts</th>
-            <th>cert</th>
-            <th>identity</th>
-            <th>via</th>
-            <th>hash</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((e, i) => (
-            <tr key={i}>
-              <td>{e.type}</td>
-              <td>{ts(e.ts)}</td>
-              <td>{e.cert_id || ""}</td>
-              <td>{e.identity || ""}</td>
-              <td>{e.via || ""}</td>
-              <td className="hash">{short(e.hash)}</td>
-            </tr>
-          ))}
-          {events.length === 0 && (
-            <tr>
-              <td colSpan={6} className="muted">
-                no events
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-
-      <h3>Trust state</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>cert</th>
-            <th>identity</th>
-            <th>status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {certs.map(([id, c]) => (
-            <tr key={id}>
-              <td>{id}</td>
-              <td>{c.identity}</td>
-              <td className={c.revoked ? "err" : "ok"}>
-                {c.revoked ? "revoked" : "valid"}
-              </td>
-            </tr>
-          ))}
-          {certs.length === 0 && (
-            <tr>
-              <td colSpan={3} className="muted">
-                no certs
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {certs.map(([id, c]) => (
+              <tr key={id}>
+                <td>{id}</td>
+                <td>{c.identity}</td>
+                <td className={c.revoked ? "err" : "ok"}>{c.revoked ? "revoked" : "valid"}</td>
+              </tr>
+            ))}
+            {certs.length === 0 && (
+              <tr>
+                <td colSpan={3} className="muted">no certs</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
     </>
   );
 }

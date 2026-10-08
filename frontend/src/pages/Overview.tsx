@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAsync, ts, Flash, PageHead, Spinner } from "../lib";
+import { StatTile } from "../viz";
 import type { OrgSummary } from "../types";
 
 export default function Overview() {
@@ -24,6 +25,10 @@ export default function Overview() {
     }
   }
 
+  const orgs = data?.orgs || [];
+  const detected = orgs.filter((o) => o.detected).length;
+  const totalEvents = orgs.reduce((s, o) => s + o.events, 0);
+
   return (
     <>
       <PageHead title="Overview">
@@ -32,6 +37,17 @@ export default function Overview() {
       <Flash msg={msg.m} kind={msg.k} />
       {res.errMsg && <Flash msg={res.errMsg} kind="err" />}
       <Spinner show={res.loading && !data} label="loading orgs…" />
+
+      <div className="grid cols-3 stagger" style={{ marginBottom: 14 }}>
+        <StatTile k="Organizations" v={orgs.length} sub="tenants" />
+        <StatTile k="Timeline events" v={totalEvents} sub="across all orgs" />
+        <StatTile
+          k="Compromised"
+          v={detected}
+          tone={detected > 0 ? "bad" : "ok"}
+          sub={detected > 0 ? "requires recovery" : "all healthy"}
+        />
+      </div>
 
       <form className="form-row" onSubmit={create}>
         <input
@@ -44,8 +60,8 @@ export default function Overview() {
         </button>
       </form>
 
-      <div className="cards">
-        {(data?.orgs || []).map((o) => (
+      <div className="cards stagger">
+        {orgs.map((o) => (
           <div
             key={o.id}
             className="card clickable"
@@ -64,7 +80,7 @@ export default function Overview() {
             </div>
           </div>
         ))}
-        {data && data.orgs.length === 0 && (
+        {data && orgs.length === 0 && (
           <p className="muted">No orgs yet — create one to start.</p>
         )}
       </div>

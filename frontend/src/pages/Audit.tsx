@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../api";
 import { ts, short, Flash, PageHead } from "../lib";
+import { EventChip } from "../viz";
 import type { AuditEvent } from "../types";
 
 interface ActionRow {
@@ -124,7 +125,7 @@ export default function Audit() {
             {events.map((e, i) => (
               <tr key={i}>
                 <td>{e.org}</td>
-                <td>{e.type}</td>
+                <td><EventChip type={e.type} /></td>
                 <td>{ts(e.ts)}</td>
                 <td>{e.cert_id || ""}</td>
                 <td>{e.identity || ""}</td>
